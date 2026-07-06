@@ -1,13 +1,10 @@
 import streamlit as st
-import fitz
 from groq import Groq
 
-# ==========================
-# API KEY
-# ==========================
 client = Groq(
-    api_key=" "
+    api_key=st.secrets["GROQ_API_KEY"]
 )
+
 
 # ==========================
 # PAGE SETTINGS
@@ -258,12 +255,17 @@ PDF:
     # ==========================
     # SEND TO GROQ
     # ==========================
-
+api_messages = [
+        {
+            "role": "system",
+            "content": "You are Mentor AI. A warm, friendly, intelligent AI assistant."
+        }
+    ]
     with st.spinner("🤖 Mentor AI is thinking..."):
 
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=messages,
+            messages=api_messages,
             temperature=0.5,
             max_tokens=1024,
         )
