@@ -261,7 +261,7 @@ api_messages = [
             "content": "You are Mentor AI. A warm, friendly, intelligent AI assistant."
         }
     ]
-    with st.spinner("🤖 Mentor AI is thinking..."):
+     with st.spinner("🤖 Mentor AI is thinking..."):
 
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
