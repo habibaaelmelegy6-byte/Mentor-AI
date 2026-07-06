@@ -270,8 +270,7 @@ with st.spinner("🤖 Mentor AI is thinking..."):
             temperature=0.5,
             max_tokens=1024,
         )
-       reply = response.choices[0].message.content
-
+reply = response.choices[0].message.content
     st.session_state.messages.append(
         {
             "role": "assistant",
