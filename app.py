@@ -1,10 +1,11 @@
-import streamlit as st
+ import streamlit as st
+import fitz  # PyMuPDF
 from groq import Groq
 
+# قراءة المفتاح وتمريره للـ Client
 client = Groq(
     api_key=st.secrets["GROQ_API_KEY"]
 )
-
 
 # ==========================
 # PAGE SETTINGS
@@ -38,23 +39,27 @@ with st.sidebar:
 
     if st.button("📚 Study"):
         st.session_state.messages.append(
-            {"role":"user","content":"Help me study."}
+            {"role": "user", "content": "Help me study."}
         )
+        st.rerun()
 
     if st.button("💻 Coding"):
         st.session_state.messages.append(
-            {"role":"user","content":"Help me write Python code."}
+            {"role": "user", "content": "Help me write Python code."}
         )
+        st.rerun()
 
     if st.button("☁️ Cloud"):
         st.session_state.messages.append(
-            {"role":"user","content":"Explain cloud computing simply."}
+            {"role": "user", "content": "Explain cloud computing simply."}
         )
+        st.rerun()
 
     if st.button("🤖 AI"):
         st.session_state.messages.append(
-            {"role":"user","content":"Teach me Artificial Intelligence."}
+            {"role": "user", "content": "Teach me Artificial Intelligence."}
         )
+        st.rerun()
 
     st.markdown("---")
     st.caption("Made with Habiba")
@@ -85,26 +90,27 @@ uploaded_file = st.file_uploader(
 pdf_text = ""
 
 if uploaded_file is not None:
+    try:
+        pdf = fitz.open(
+            stream=uploaded_file.read(),
+            filetype="pdf"
+        )
 
-    pdf = fitz.open(
-        stream=uploaded_file.read(),
-        filetype="pdf"
-    )
+        for page in pdf:
+            pdf_text += page.get_text()
 
-    for page in pdf:
-        pdf_text += page.get_text()
+        st.success("✅ PDF Uploaded Successfully!")
 
-    st.success("✅ PDF Uploaded Successfully!")
-
-    with st.expander("Preview PDF"):
-        st.write(pdf_text[:3000])
+        with st.expander("Preview PDF"):
+            st.write(pdf_text[:3000])
+    except Exception as e:
+        st.error(f"Error reading PDF: {e}")
 
 # ==========================
 # SHOW CHAT
 # ==========================
 
 for message in st.session_state.messages:
-
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
@@ -118,18 +124,19 @@ if prompt:
 
     st.session_state.messages.append(
         {
-            "role":"user",
-            "content":prompt
+            "role": "user",
+            "content": prompt
         }
     )
 
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # بناء قائمة الرسايل متضمنة الـ System Prompt الكبير بتاعك
     messages = [
-    {
-        "role": "system",
-        "content": """
+        {
+            "role": "system",
+            "content": """
 You are Mentor AI.
 
 You are a warm, friendly, intelligent AI assistant who helps people with studying, programming, AI, cloud computing, career advice, productivity, daily life, and personal questions.
@@ -184,160 +191,114 @@ Coding:
 Your goal:
 Help people learn, solve problems, make better decisions, and leave every conversation feeling more confident and supported.
 """
-    }
-]
+        }
+    ]
 
     if pdf_text != "":
-
         messages.append(
             {
-                "role":"system",
-                "content":f"""
+                "role": "system",
+                "content": f"""
 The user uploaded the following PDF.
-
 Use it whenever the user asks about the document.
 
 PDF:
-
 {pdf_text[:12000]}
 """
             }
         )
 
+    # إضافة تاريخ المحادثة الكامل (اللي جواه السؤال الجديد)
     messages.extend(st.session_state.messages)
-        # ==========================
+
+    # ==========================
     # PDF COMMANDS
     # ==========================
-
     user_prompt = prompt
 
     if pdf_text != "":
-
         lower_prompt = prompt.lower()
 
         if "summarize" in lower_prompt or "summary" in lower_prompt:
-
-            user_prompt = f"""
-Summarize the following PDF in simple bullet points.
-
-PDF:
-
-{pdf_text[:12000]}
-"""
-
+            user_prompt = f"Summarize the following PDF in simple bullet points.\n\nPDF:\n{pdf_text[:12000]}"
         elif "quiz" in lower_prompt:
-
-            user_prompt = f"""
-Create 10 multiple choice questions from this PDF.
-
-PDF:
-
-{pdf_text[:12000]}
-"""
-
+            user_prompt = f"Create 10 multiple choice questions from this PDF.\n\nPDF:\n{pdf_text[:12000]}"
         elif "flashcard" in lower_prompt:
+            user_prompt = f"Create flashcards from this PDF.\n\nPDF:\n{pdf_text[:12000]}"
 
-            user_prompt = f"""
-Create flashcards from this PDF.
-
-PDF:
-
-{pdf_text[:12000]}
-"""
-
-    messages.append(
-        {
-            "role": "user",
-            "content": user_prompt
-        }
-    )
+        # تحديث آخر رسالة لو كانت أمر مخصص للـ PDF
+        if user_prompt != prompt:
+            messages[-1]["content"] = user_prompt
 
     # ==========================
     # SEND TO GROQ
     # ==========================
-api_messages = [
-        {
-            "role": "system",
-            "content": "You are Mentor AI. A warm, friendly, intelligent AI assistant."
-        }
-    ]
-api_messages.extend(st.session_state.messages)
-with st.spinner("🤖 Mentor AI is thinking..."):
+    with st.spinner("🤖 Mentor AI is thinking..."):
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                temperature=0.5,
+                max_tokens=1024,
+            )
+            reply = response.choices[0].message.content
+            
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": reply
+                }
+            )
 
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=api_messages,
-            temperature=0.5,
-            max_tokens=1024,
-        )
-reply = response.choices[0].message.content
-    st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": reply
-        }
-    )
-
-    with st.chat_message("assistant"):
-        st.markdown(reply)
+            with st.chat_message("assistant"):
+                st.markdown(reply)
+                
+        except Exception as e:
+            st.error(f"❌ Connection Error: {e}")
 
 # ==========================
 # PDF SHORTCUT BUTTONS
 # ==========================
-
-if uploaded_file is not None:
-
+if uploaded_file is not None and pdf_text != "":
     st.markdown("---")
     st.subheader("📄 PDF Tools")
 
     col1, col2 = st.columns(2)
 
     with col1:
-
         if st.button("📄 Summarize PDF"):
-
-            summary = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"""
-Summarize this PDF in simple bullet points.
-
-PDF:
-
-{pdf_text[:12000]}
-"""
-                    }
-                ],
-                temperature=0.4,
-                max_tokens=1024,
-            )
-
-            st.success(summary.choices[0].message.content)
+            with st.spinner("جاري التلخيص..."):
+                try:
+                    summary = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": f"Summarize this PDF in simple bullet points.\n\nPDF:\n{pdf_text[:12000]}"
+                            }
+                        ],
+                        temperature=0.4,
+                        max_tokens=1024,
+                    )
+                    st.success(summary.choices[0].message.content)
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
     with col2:
-
         if st.button("🎓 Quiz Me"):
-
-            quiz = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"""
-Create 10 MCQ questions from this PDF.
-
-After every question give the correct answer.
-
-PDF:
-
-{pdf_text[:12000]}
-"""
-                    }
-                ],
-                temperature=0.5,
-                max_tokens=1024,
-            )
-
-            st.success(quiz.choices[0].message.content)
+            with st.spinner("جاري إنشاء الاختبار..."):
+                try:
+                    quiz = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": f"Create 10 MCQ questions from this PDF.\nAfter every question give the correct answer.\n\nPDF:\n{pdf_text[:12000]}"
+                            }
+                        ],
+                        temperature=0.5,
+                        max_tokens=1024,
+                    )
+                    st.success(quiz.choices[0].message.content)
+                except Exception as e:
+                    st.error(f"Error: {e}")
